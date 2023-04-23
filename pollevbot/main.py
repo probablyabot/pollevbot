@@ -10,7 +10,7 @@ def main():
     # If you're using not using a UW or Stanford PollEv account,
     # use argument "login_type='pollev'"
     with PollBot(user, password, host, login_type='stanford', closed_wait=15) as bot:
-        bot.run(daily_start='01:48:00', daily_end='01:50:00')
+        bot.run(daily_start='11:30:00', daily_end='12:20:00')
 
 
 if __name__ == '__main__':
