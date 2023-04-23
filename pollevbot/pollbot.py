@@ -34,8 +34,9 @@ class PollBot:
         :param user: PollEv account username.
         :param password: PollEv account password.
         :param host: PollEv host name, i.e. 'uwpsych'
-        :param login_type: Login protocol to use (either 'uw' or 'pollev').
+        :param login_type: Login protocol to use (Either 'uw', 'stanford', or 'pollev').
                         If 'uw', uses MyUW (SAML2 SSO) to authenticate.
+                        If 'stanford', uses Stanford Login (SAML2 SSO) to authenticate.
                         If 'pollev', uses pollev.com.
         :param min_option: Minimum index (0-indexed) of option to select (inclusive).
         :param max_option: Maximum index (0-indexed) of option to select (exclusive).
@@ -45,14 +46,18 @@ class PollBot:
                         before answering.
         :param lifetime: Lifetime of this PollBot (in seconds).
                         If float('inf'), runs forever.
-        :raises ValueError: if login_type is not 'uw' or 'pollev'.
+        :raises ValueError: if login_type is not 'uw', 'stanford', or 'pollev'.
         """
-        if login_type not in {'uw', 'pollev'}:
+        if login_type not in {'uw', 'stanford', 'pollev'}:
             raise ValueError(f"'{login_type}' is not a supported login type. "
-                             f"Use 'uw' or 'pollev'.")
-        if login_type == 'pollev' and user.strip().lower().endswith('@uw.edu'):
-            logger.warning(f"{user} looks like a UW email. "
-                           f"Use login_type='uw' to log in with MyUW.")
+                             f"Use 'uw', 'stanford', or 'pollev'.")
+        if login_type == 'pollev':
+            if user.strip().lower().endswith('@uw.edu'):
+                logger.warning(f"{user} looks like a UW email. "
+                               f"Use login_type='uw' to log in with MyUW.")
+            elif login_type == 'pollev' and user.strip().lower().endswith('@stanford.edu'):
+                logger.warning(f"{user} looks like a Stanford email. "
+                               f"Use login_type='stanford' to log in with Stanford Login.")
 
         self.user = user
         self.password = password
@@ -72,8 +77,8 @@ class PollBot:
 
         self.session = requests.Session()
         self.session.headers = {
-            'user-agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36"
+            'user-agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36"
         }
         # IDs of all polls we have answered already
         self.answered_polls = set()
@@ -89,8 +94,9 @@ class PollBot:
         return round(time.time() * 1000)
 
     def _get_csrf_token(self) -> str:
-        url = endpoints['csrf'].format(timestamp=self.timestamp())
-        return self.session.get(url).json()['token']
+        # url = endpoints['csrf'].format(timestamp=self.timestamp())
+        # return self.session.get(url).json()['token']
+        return self.session.get(endpoints['csrf']).json()['token']
 
     def _pollev_login(self) -> bool:
         """
@@ -141,6 +147,99 @@ class PollBot:
                           data={'token': auth_token})
         return True
 
+    def _stanford_login(self):
+        """
+        Logs into PollEv through Stanford Login.
+        Returns True on success, False otherwise.
+        """
+        from bs4 import BeautifulSoup
+
+        logger.info("Logging into PollEv through Stanford Login.")
+
+        r = self.session.get(endpoints['stanford_saml'])
+        soup = BeautifulSoup(r.text, "html.parser")
+        csrf_token = soup.find('input', {'name': 'csrf_token'})
+
+        r = self.session.post(endpoints['stanford_login'].format(i=1),
+                              data={
+                                  'csrf_token': csrf_token['value'],
+                                  'shib_idp_ls_exception.shib_idp_session_ss': '',
+                                  'shib_idp_ls_success.shib_idp_session_ss': 'false',
+                                  '_eventId_proceed': ''
+                              })
+        soup = BeautifulSoup(r.text, "html.parser")
+        csrf_token = soup.find('input', {'name': 'csrf_token'})
+
+        r = self.session.post(endpoints['stanford_login'].format(i=2),
+                              data={
+                                  'csrf_token': csrf_token['value'],
+                                  'username': self.user,
+                                  'password': self.password,
+                                  '_eventId_proceed': 'Login'
+                              })
+        url = r.url  # url for Duo authentication
+        soup = BeautifulSoup(r.text, "html.parser")
+        inputs = soup.find_all('input', type='hidden')
+
+        # If authentication fails, response will be same Stanford login page,
+        # so inputs will only contain csrf_token. If authentication succeeds,
+        # response will be Duo authentication page.
+        # TODO: find better way to differentiate than looking at len(inputs).
+        # TODO: also, check if already duo authenticated (SSO) and branch accordingly
+        if len(inputs) == 1:
+            return False
+
+        r = self.session.post(url, data={tag['name']: tag['value'] for tag in inputs})
+        soup = BeautifulSoup(r.text, "html.parser")
+        sid = soup.find('input', {'name': 'sid'})
+        xsrf = soup.find('input', {'name': '_xsrf'})
+
+        r = self.session.get(endpoints['stanford_duo_auth'].format(id=sid['value']))
+
+        # Assumes authentication is done via Duo Push to phone 1
+        device_key = r.json()['response']['phones'][0]['key']
+
+        r = self.session.post(endpoints['stanford_duo_prompt'],
+                              data={
+                                  'device': 'phone1',
+                                  'factor': 'Duo Push',
+                                  'postAuthDestination': 'OIDC_EXIT',
+                                  'sid': sid['value']
+                              })
+        logger.info('Duo Push sent to phone.')
+        response = r.json()['response']
+        txid = response['txid']
+
+        status = 'pushed'
+        while status == 'pushed':
+            r = self.session.post(endpoints['stanford_duo_status'],
+                                  data={
+                                      'txid': txid,
+                                      'sid': sid['value']
+                                  })
+            response = r.json()['response']
+            status = response['status_code']
+
+        if response['result'] != 'SUCCESS':
+            logging.info('Duo authentication failed. Duo Push may have timed out.')
+            return False
+
+        r = self.session.post(endpoints['stanford_duo_exit'],
+                              data={
+                                  'sid': sid['value'],
+                                  'txid': txid,
+                                  'factor': 'Duo Push',
+                                  'device_key': device_key,
+                                  '_xsrf': xsrf['value'],
+                                  'dampen_choice': 'true'
+                              })
+        soup = BeautifulSoup(r.text, "html.parser")
+        saml_response = soup.find('input', {'name': 'SAMLResponse'})
+
+        self.session.post(endpoints['stanford_callback'],
+                          data={'SAMLResponse': saml_response['value']})
+        return True
+
     def login(self):
         """
         Logs into PollEv.
@@ -149,6 +248,8 @@ class PollBot:
         """
         if self.login_type.lower() == 'uw':
             success = self._uw_login()
+        elif self.login_type.lower() == 'stanford':
+            success = self._stanford_login()
         else:
             success = self._pollev_login()
         if not success:
@@ -230,8 +331,10 @@ class PollBot:
     def alive(self):
         return time.time() <= self.start_time + self.lifetime
 
-    def run(self):
+    def run(self, daily_start='00:00:00', daily_end='23:59:59'):
         """Runs the script."""
+        from datetime import datetime, timedelta, time as t
+
         try:
             self.login()
             token = self.get_firehose_token()
@@ -240,6 +343,21 @@ class PollBot:
             return
 
         while self.alive():
+            # TODO: make this part better, possibly by integrating with self.alive()
+            start_h, start_m, start_s = [int(i) for i in daily_start.split(':')]
+            start_t = t(start_h, start_m, start_s)
+            end_h, end_m, end_s = [int(i) for i in daily_end.split(':')]
+            end_t = t(end_h, end_m, end_s)
+            today = datetime.today()
+            now = datetime.now().time()
+
+            if not start_t <= now <= end_t:
+                d = datetime.combine(today, start_t) - datetime.combine(today, now)
+                if d.days < 0:
+                    d += timedelta(days=1)
+                logging.info(f'Waiting for {d.seconds} seconds until start time {start_t}.')
+                time.sleep(d.seconds)
+
             poll_id = self.get_new_poll_id(token)
 
             if poll_id is None:
@@ -247,8 +365,11 @@ class PollBot:
                             f'Waiting {self.closed_wait} seconds before checking again.')
                 time.sleep(self.closed_wait)
             else:
-                logger.info(f"{self.host} has opened a new poll! "
-                            f"Waiting {self.open_wait} seconds before responding.")
+                logger.info(f'{self.host} has opened a new poll! '
+                            f'Waiting {self.open_wait} seconds before responding.')
                 time.sleep(self.open_wait)
                 r = self.answer_poll(poll_id)
                 logger.info(f'Received response: {r}')
+                # return after answering. comment out to keep running and
+                # continuously answer new polls
+                return
