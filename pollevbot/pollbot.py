@@ -356,16 +356,15 @@ class PollBot:
             end_t = t.max
 
         while self.alive():
-            now = datetime.now().time()
+            now = datetime.now()
 
             # TODO: error handling for start_t > end_t, only one of start/end supplied, etc
-            if not start_t <= now <= end_t:
-                today = datetime.today()
+            if not start_t <= now.time() <= end_t:
                 # calculate how long to sleep for until next scheduled start
-                d = datetime.combine(today, start_t) - datetime.combine(today, now)
+                d = datetime.combine(now, start_t) - now
                 if d.days < 0:
                     d += timedelta(days=1)
-                logging.info(f'Waiting for {d.seconds} seconds until start time {start_t}.')
+                logging.info(f'Waiting {d} until start time {start_t}.')
                 time.sleep(d.seconds)
 
             poll_id = self.get_new_poll_id(token)
