@@ -5,7 +5,7 @@ from getpass import getpass
 def main():
     user = input('username: ')
     password = getpass('password: ')
-    host = 'johnousterhout268'
+    host = input('pollev host name: ')
 
     # If you're using not using a UW or Stanford PollEv account,
     # use argument "login_type='pollev'"
