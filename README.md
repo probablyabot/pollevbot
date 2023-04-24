@@ -19,46 +19,57 @@ Install `pollevbot`:
 pip install pollevbot
 ```
 
-Set your username, password, and desired poll host:
+Set your username, password, and desired poll host (for example, using `input()`):
 ```python
-user = 'My Username'
-password = 'My Password'
-host = 'PollEverywhere URL Extension e.g. "uwpsych"'
+user = input('username: ')
+password = input('password: ')
+host = input('pollev.com url extension: ')
 ```
 
 And run the script.
 ```python
 from pollevbot import PollBot
 
-user = 'My Username'
-password = 'My Password'
-host = 'PollEverywhere URL Extension e.g. "uwpsych"'
+user = input('username: ')
+password = input('password: ')
+host = input('pollev.com url extension: ')
 
-# If you're using a non-UW PollEv account,
+# If you're not using a UW or Stanford PollEv account,
 # add the argument "login_type='pollev'"
 with PollBot(user, password, host) as bot:
     bot.run()
 ```
-~~Alternatively, you can clone this repo, set your login credentials in 
-[main.py](pollevbot/main.py) and run it from there.~~ (Deprecated, storing a
-password as plaintext in a .py file is a terrible idea tf?)
+Alternatively, you can clone this repo and run [pollevbot/main.py](pollevbot/main.py),
+which will read username, password, and host from `input()`. The input for
+password will be hidden.
 
-To hide password input, make sure you are running
-```python pollevbot/main.py```
-from a terminal window and not an IDE. (If you run from an IDE, you will get a 
-```GetPassWarning: Can not control echo on the terminal``` and your password
-will **not** be hidden.)
+**Note:** To hide password input, make sure you are running
+```
+python pollevbot/main.py
+```
+from a terminal window and not an IDE. If you run from an IDE, you will get a
+```
+GetPassWarning: Can not control echo on the terminal
+```
+and your password will **not** be hidden.
 
-### Usage for MacOS with daily start/end time feature:
-Run
-```python pollevbot/main.py```, open a new terminal window, and run
-```sh caffeinate.sh``` to prevent computer from sleeping until the program finishes
-running. Note that this only prevents idle sleep, so make sure you don't close
-the lid or manually put the computer to sleep.
+### Usage for macOS with daily start/end time feature:
+In [main.py](pollevbot/main.py), use the optional `daily_start` and
+`daily_end` arguments in `PollBot()` to set the desired daily start and end
+time. Format using 24 hour time, HH:MM:SS. Then run
+```bash
+caffeinate python pollevbot/main.py
+```
+This will suspend the python program from running outside the specified times,
+while also preventing the computer from sleeping. To stop the program, simply
+Ctrl-C. Note that `caffeinate` only prevents idle sleep, so make sure you
+don't close the lid or manually put the computer to sleep.
 
-The purpose of this feature, as opposed to deploying via Heroku (as shown
+The purpose of this feature, as opposed to deploying via Heroku (detailed
 below), is to avoid having to authenticate with Duo, which requires manual
-confirmation (i.e. via Duo Push), every time the program runs.
+confirmation (i.e. via Duo Push), every time the program runs. With this
+feature, one can schedule the program to run, log in beforehand, and forget
+about it.
 
 ## Heroku
 

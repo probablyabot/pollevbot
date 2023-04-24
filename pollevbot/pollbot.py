@@ -27,7 +27,8 @@ class PollBot:
     def __init__(self, user: str, password: str, host: str,
                  login_type: str = 'uw', min_option: int = 0,
                  max_option: int = None, closed_wait: float = 5,
-                 open_wait: float = 5, lifetime: float = float('inf')):
+                 open_wait: float = 5, lifetime: float = float('inf'),
+                 daily_start: str = None, daily_end: str = None):
         """
         Constructor. Creates a PollBot that answers polls on pollev.com.
 
@@ -74,6 +75,9 @@ class PollBot:
 
         self.lifetime = lifetime
         self.start_time = time.time()
+
+        self.daily_start = daily_start
+        self.daily_end = daily_end
 
         self.session = requests.Session()
         self.session.headers = {
@@ -331,7 +335,7 @@ class PollBot:
     def alive(self):
         return time.time() <= self.start_time + self.lifetime
 
-    def run(self, daily_start='00:00:00', daily_end='23:59:59'):
+    def run(self):
         """Runs the script."""
         from datetime import datetime, timedelta, time as t
 
@@ -342,17 +346,22 @@ class PollBot:
             logger.error(e)
             return
 
-        while self.alive():
-            # TODO: make this daily start/end interface better.
-            # TODO: possibly by integrating with self.alive() ?
-            start_h, start_m, start_s = [int(i) for i in daily_start.split(':')]
+        if self.daily_start and self.daily_end:
+            start_h, start_m, start_s = [int(i) for i in self.daily_start.split(':')]
+            end_h, end_m, end_s = [int(i) for i in self.daily_end.split(':')]
             start_t = t(start_h, start_m, start_s)
-            end_h, end_m, end_s = [int(i) for i in daily_end.split(':')]
             end_t = t(end_h, end_m, end_s)
-            today = datetime.today()
+        else:
+            start_t = t.min
+            end_t = t.max
+
+        while self.alive():
             now = datetime.now().time()
 
+            # TODO: error handling for start_t > end_t, only one of start/end supplied, etc
             if not start_t <= now <= end_t:
+                today = datetime.today()
+                # calculate how long to sleep for until next scheduled start
                 d = datetime.combine(today, start_t) - datetime.combine(today, now)
                 if d.days < 0:
                     d += timedelta(days=1)
