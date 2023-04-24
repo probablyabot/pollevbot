@@ -41,7 +41,7 @@ with PollBot(user, password, host) as bot:
 ```
 ~~Alternatively, you can clone this repo, set your login credentials in 
 [main.py](pollevbot/main.py) and run it from there.~~ (Deprecated, storing a
-password as plaintext in a .py file is dangerous.)
+password as plaintext in a .py file is a terrible idea tf?)
 
 To hide password input, make sure you are running
 ```python pollevbot/main.py```
