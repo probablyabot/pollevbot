@@ -39,8 +39,26 @@ host = 'PollEverywhere URL Extension e.g. "uwpsych"'
 with PollBot(user, password, host) as bot:
     bot.run()
 ```
-Alternatively, you can clone this repo, set your login credentials in 
-[main.py](pollevbot/main.py) and run it from there.
+~~Alternatively, you can clone this repo, set your login credentials in 
+[main.py](pollevbot/main.py) and run it from there.~~ (Deprecated, storing a
+password as plaintext in a .py file is dangerous.)
+
+To hide password input, make sure you are running
+```python pollevbot/main.py```
+from a terminal window and not an IDE. (If you run from an IDE, you will get a 
+```GetPassWarning: Can not control echo on the terminal``` and your password
+will **not** be hidden.)
+
+### Usage for MacOS with daily start/end time feature:
+Run
+```python pollevbot/main.py```, open a new terminal window, and run
+```sh caffeinate.sh``` to prevent computer from sleeping until the program finishes
+running. Note that this only prevents idle sleep, so make sure you don't close
+the lid or manually put the computer to sleep.
+
+The purpose of this feature, as opposed to deploying via Heroku (as shown
+below), is to avoid having to authenticate with Duo, which requires manual
+confirmation (i.e. via Duo Push), every time the program runs.
 
 ## Heroku
 

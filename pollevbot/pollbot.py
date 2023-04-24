@@ -343,7 +343,8 @@ class PollBot:
             return
 
         while self.alive():
-            # TODO: make this part better, possibly by integrating with self.alive()
+            # TODO: make this daily start/end interface better.
+            # TODO: possibly by integrating with self.alive() ?
             start_h, start_m, start_s = [int(i) for i in daily_start.split(':')]
             start_t = t(start_h, start_m, start_s)
             end_h, end_m, end_s = [int(i) for i in daily_end.split(':')]
@@ -370,6 +371,3 @@ class PollBot:
                 time.sleep(self.open_wait)
                 r = self.answer_poll(poll_id)
                 logger.info(f'Received response: {r}')
-                # return after answering. comment out to keep running and
-                # continuously answer new polls
-                return
