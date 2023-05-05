@@ -43,13 +43,11 @@ Alternatively, you can clone this repo and run [pollevbot/main.py](pollevbot/mai
 which will read username, password, and host from `input()`. The input for
 password will be hidden.
 
-**Note:** To hide password input, make sure you are running
+**Note:** To hide password input, make sure you are running the program from a
+terminal window and not an IDE. If you run from an IDE, you will see
 ```
-python pollevbot/main.py
-```
-from a terminal window and not an IDE. If you run from an IDE, you will get a
-```
-GetPassWarning: Can not control echo on the terminal
+GetPassWarning: Can not control echo on the terminal.
+Warning: Password  input may be echoed.
 ```
 and your password will **not** be hidden.
 
@@ -58,7 +56,7 @@ In [main.py](pollevbot/main.py), use the optional `daily_start` and
 `daily_end` arguments in `PollBot()` to set the desired daily start and end
 time. Format using 24 hour time, HH:MM:SS. Then run
 ```bash
-caffeinate python pollevbot/main.py
+caffeinate python -m pollevbot.main
 ```
 This will suspend the python program from running outside the specified times,
 while also preventing the computer from sleeping. To stop the program, simply
@@ -66,10 +64,9 @@ Ctrl-C. Note that `caffeinate` only prevents idle sleep, so make sure you
 don't close the lid or manually put the computer to sleep.
 
 The purpose of this feature, as opposed to deploying via Heroku (detailed
-below), is to avoid having to authenticate with Duo, which requires manual
-confirmation (i.e. via Duo Push), every time the program runs. With this
-feature, one can schedule the program to run, log in beforehand, and forget
-about it.
+below), is to avoid having to authenticate with Duo every time the program
+runs. With this feature, one can schedule the program to run, log in
+beforehand, and forget about it.
 
 ## Heroku
 

@@ -12,9 +12,9 @@ endpoints = {
     # Stanford Login
     'stanford_login': 'https://login.stanford.edu/idp/profile/SAML2/Redirect/'
                       'SSO?execution=e1s{i}',
-    'stanford_saml': 'https://www.polleverywhere.com/auth/saml/stanford?customs=0',
+    'stanford_saml': 'https://www.polleverywhere.com/auth/saml/stanford',
     'stanford_duo_auth': 'https://api-531b0865.duosecurity.com/frame/v4/auth/'
-                         'prompt/data?post_auth_action=OIDC_EXIT&sid={id}',
+                         'prompt/data?sid={id}',
     'stanford_duo_prompt': 'https://api-531b0865.duosecurity.com/frame/v4/prompt',
     'stanford_duo_status': 'https://api-531b0865.duosecurity.com/frame/v4/status',
     'stanford_duo_exit': 'https://api-531b0865.duosecurity.com/frame/v4/oidc/exit',
@@ -26,14 +26,14 @@ endpoints = {
     'csrf': 'https://pollev.com/proxy/api/csrf_token',
 
     # Respond to a poll
-    'firehose_auth': 'https://pollev.com/proxy/api/users/{host}/registration_info?_={timestamp}',
+    'firehose_auth': 'https://pollev.com/proxy/api/users/{host}/registration_info',
     'firehose_with_token': 'https://firehose-production.polleverywhere.com/users/{host}/activity/'
-                           'current.json?firehose_token={token}&last_message_sequence=0&_={timestamp}',
+                           'current.json?firehose_token={token}',
     'firehose_no_token': 'https://firehose-production.polleverywhere.com/users/{host}/activity/'
-                         'current.json?last_message_sequence=0&_={timestamp}',
+                         'current.json',
     'poll_data': 'https://pollev.com/proxy/api/participant/multiple_choice_polls/{uid}?include=collection',
     'respond_to_poll': 'https://pollev.com/proxy/api/participant/multiple_choice_polls/{uid}/results',
     'clear_responses': 'https://pollev.com/proxy/api/results/{id}',
     'check_responses': 'https://pollev.com/proxy/my/results?permalinks%5B%5D={uid}&'
-                       'per_page=500&include_archived=false&_={timestamp}'
+                       'per_page=500&include_archived=false'
 }

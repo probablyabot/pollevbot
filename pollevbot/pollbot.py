@@ -98,8 +98,6 @@ class PollBot:
         return round(time.time() * 1000)
 
     def _get_csrf_token(self) -> str:
-        # url = endpoints['csrf'].format(timestamp=self.timestamp())
-        # return self.session.get(url).json()['token']
         return self.session.get(endpoints['csrf']).json()['token']
 
     def _pollev_login(self) -> bool:
@@ -167,8 +165,6 @@ class PollBot:
         r = self.session.post(endpoints['stanford_login'].format(i=1),
                               data={
                                   'csrf_token': csrf_token['value'],
-                                  'shib_idp_ls_exception.shib_idp_session_ss': '',
-                                  'shib_idp_ls_success.shib_idp_session_ss': 'false',
                                   '_eventId_proceed': ''
                               })
         soup = BeautifulSoup(r.text, "html.parser")
@@ -181,18 +177,15 @@ class PollBot:
                                   'password': self.password,
                                   '_eventId_proceed': 'Login'
                               })
-        url = r.url  # url for Duo authentication
+        url = r.url
+        # If authentication fails, url will be Stanford login page
+        if 'duosecurity.com' not in url:
+            return False
         soup = BeautifulSoup(r.text, "html.parser")
         inputs = soup.find_all('input', type='hidden')
 
-        # If authentication fails, response will be same Stanford login page,
-        # so inputs will only contain csrf_token. If authentication succeeds,
-        # response will be Duo authentication page.
-        # TODO: find better way to differentiate than looking at len(inputs).
-        # TODO: also, check if already duo authenticated (SSO) and branch accordingly
-        if len(inputs) == 1:
-            return False
-
+        # seems like you need to post to this url twice, idk why
+        self.session.post(url, data={tag['name']: tag['value'] for tag in inputs})
         r = self.session.post(url, data={tag['name']: tag['value'] for tag in inputs})
         soup = BeautifulSoup(r.text, "html.parser")
         sid = soup.find('input', {'name': 'sid'})
@@ -268,15 +261,17 @@ class PollBot:
 
         :raises ValueError: if the specified poll host is not found.
         """
-        from uuid import uuid4
+        # from uuid import uuid4
         # Before issuing a token, AWS checks for two visitor cookies that
         # PollEverywhere generates using js. They are random uuids.
-        self.session.cookies['pollev_visitor'] = str(uuid4())
-        self.session.cookies['pollev_visit'] = str(uuid4())
-        url = endpoints['firehose_auth'].format(
-            host=self.host,
-            timestamp=self.timestamp
-        )
+        # NOTE: These seem to be deprecated, so they have been commented out.
+        # self.session.cookies['pollev_visitor'] = str(uuid4())
+        # self.session.cookies['pollev_visit'] = str(uuid4())
+        session_id = self.session.cookies.get('polleverywhere_session_id',
+                                              domain='www.polleverywhere.com')
+        self.session.cookies.set('polleverywhere_session_id', session_id,
+                                 domain='pollev.com')
+        url = endpoints['firehose_auth'].format(host=self.host)
         r = self.session.get(url)
 
         if "presenter not found" in r.text.lower():
@@ -289,13 +284,11 @@ class PollBot:
         if firehose_token:
             url = endpoints['firehose_with_token'].format(
                 host=self.host,
-                token=firehose_token,
-                timestamp=self.timestamp
+                token=firehose_token
             )
         else:
             url = endpoints['firehose_no_token'].format(
-                host=self.host,
-                timestamp=self.timestamp
+                host=self.host
             )
         try:
             r = self.session.get(url, timeout=0.3)
@@ -328,17 +321,42 @@ class PollBot:
         r = self.session.post(
             endpoints['respond_to_poll'].format(uid=poll_id),
             headers={'x-csrf-token': self._get_csrf_token()},
-            data={'option_id': option_id, 'isPending': True, 'source': "pollev_page"}
+            data={'option_id': option_id, 'isPending': True, 'source': 'pollev_page'}
         )
         return r.json()
 
     def alive(self):
         return time.time() <= self.start_time + self.lifetime
 
-    def run(self):
-        """Runs the script."""
+    def daily_schedule(self):
         from datetime import datetime, timedelta, time as t
 
+        if self.daily_start is None or self.daily_end is None:
+            return True
+
+        try:
+            start_h, start_m, start_s = [int(i) for i in self.daily_start.split(':')]
+            end_h, end_m, end_s = [int(i) for i in self.daily_end.split(':')]
+            start_t = t(start_h, start_m, start_s)
+            end_t = t(end_h, end_m, end_s)
+        except ValueError:
+            logger.error('Daily start/end time is formatted incorrectly.'
+                         'Format using 24 hour time, HH:MM:SS.')
+            return False
+
+        now = datetime.now()
+
+        # TODO: error handling for start_t > end_t
+        if not start_t <= now.time() <= end_t:
+            # calculate how long to sleep for until next scheduled start
+            d = datetime.combine(now, start_t) - now
+            if d.days < 0:
+                d += timedelta(days=1)
+            logging.info(f'Waiting {d} until start time {start_t}.')
+            time.sleep(d.seconds)
+
+    def run(self):
+        """Runs the script."""
         try:
             self.login()
             token = self.get_firehose_token()
@@ -346,27 +364,7 @@ class PollBot:
             logger.error(e)
             return
 
-        if self.daily_start and self.daily_end:
-            start_h, start_m, start_s = [int(i) for i in self.daily_start.split(':')]
-            end_h, end_m, end_s = [int(i) for i in self.daily_end.split(':')]
-            start_t = t(start_h, start_m, start_s)
-            end_t = t(end_h, end_m, end_s)
-        else:
-            start_t = t.min
-            end_t = t.max
-
-        while self.alive():
-            now = datetime.now()
-
-            # TODO: error handling for start_t > end_t, only one of start/end supplied, etc
-            if not start_t <= now.time() <= end_t:
-                # calculate how long to sleep for until next scheduled start
-                d = datetime.combine(now, start_t) - now
-                if d.days < 0:
-                    d += timedelta(days=1)
-                logging.info(f'Waiting {d} until start time {start_t}.')
-                time.sleep(d.seconds)
-
+        while self.alive() and self.daily_schedule():
             poll_id = self.get_new_poll_id(token)
 
             if poll_id is None:
