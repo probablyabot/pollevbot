@@ -329,6 +329,12 @@ class PollBot:
         return time.time() <= self.start_time + self.lifetime
 
     def daily_schedule(self):
+        """
+        If daily start/end time are both specified and current time is not in
+        between start and end time, sleeps the program until start time.
+
+        :raises ValueError: if daily start/end time is formatted incorrectly.
+        """
         from datetime import datetime, timedelta, time as t
 
         if self.daily_start is None or self.daily_end is None:
@@ -346,7 +352,7 @@ class PollBot:
 
         now = datetime.now()
 
-        # TODO: error handling for start_t > end_t
+        # TODO: allow start_t > end_t (run through midnight)
         if not start_t <= now.time() <= end_t:
             # calculate how long to sleep for until next scheduled start
             d = datetime.combine(now, start_t) - now
@@ -354,6 +360,7 @@ class PollBot:
                 d += timedelta(days=1)
             logging.info(f'Waiting {d} until start time {start_t}.')
             time.sleep(d.seconds)
+        return True
 
     def run(self):
         """Runs the script."""
@@ -364,7 +371,7 @@ class PollBot:
             logger.error(e)
             return
 
-        while self.alive() and self.daily_schedule():
+        while self.daily_schedule() and self.alive():
             poll_id = self.get_new_poll_id(token)
 
             if poll_id is None:
