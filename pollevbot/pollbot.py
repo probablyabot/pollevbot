@@ -295,7 +295,7 @@ class PollBot:
             # Unique id for poll
             poll_id = json.loads(r.json()['message'])['uid']
         # Firehose either doesn't respond or responds with no data if no poll is open.
-        except (requests.exceptions.ReadTimeout, KeyError):
+        except (requests.exceptions.Timeout, KeyError):
             return None
         if poll_id in self.answered_polls:
             return None
