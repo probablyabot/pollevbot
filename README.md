@@ -47,7 +47,7 @@ password will be hidden.
 terminal window and not an IDE. If you run from an IDE, you will see
 ```
 GetPassWarning: Can not control echo on the terminal.
-Warning: Password  input may be echoed.
+Warning: Password input may be echoed.
 ```
 and your password will **not** be hidden.
 
